@@ -126,3 +126,36 @@ class ExecutableStartTest(WorkspaceFixture):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TimedTest(unittest.TestCase):
+    def run_timed(self, body):
+        import io
+        out = io.StringIO()
+        with mock.patch('sys.stdout', out):
+            try:
+                with workspace.timed('check'):
+                    body()
+            except BaseException as error:
+                return out.getvalue(), error
+        return out.getvalue(), None
+
+    def test_reports_success(self):
+        out, error = self.run_timed(lambda: None)
+        self.assertRegex(out, r'^check finished in \d+\.\d s\n$')
+        self.assertIsNone(error)
+
+    def test_reports_failure_and_keeps_the_error(self):
+        def fail():
+            raise ValueError('broken')
+        out, error = self.run_timed(fail)
+        self.assertRegex(out, r'^check failed after \d+\.\d s\n$')
+        self.assertIsInstance(error, ValueError)
+
+    def test_keeps_exit_status_and_interrupts(self):
+        out, error = self.run_timed(lambda: sys.exit(3))
+        self.assertIn('failed after', out)
+        self.assertEqual(error.code, 3)
+        out, error = self.run_timed(lambda: (_ for _ in ()).throw(KeyboardInterrupt()))
+        self.assertIn('failed after', out)
+        self.assertIsInstance(error, KeyboardInterrupt)

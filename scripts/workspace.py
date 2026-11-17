@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Application workspace commands; component repositories own their local work."""
 import argparse
+import contextlib
 import copy
 import fcntl
 import hashlib
@@ -1072,6 +1073,28 @@ COMMANDS = ('help', 'start', 'stop', 'choose', 'update', 'upgrade', 'own', 'add'
             'release', 'connect-private-sources', 'logs', 'jobs', 'insight', 'mcp')
 
 
+# Commands that can run for more than about ten seconds say how long they took.
+# start is not here: it hands over to the Platform, which prints its own "Started in" line.
+TIMED = ('setup', 'add', 'update', 'upgrade', 'pin', 'check', 'release')
+
+
+@contextlib.contextmanager
+def timed(command):
+    """Print '<command> finished in N s' or '<command> failed after N s'.
+
+    Whatever ends the command (an error, SystemExit, Ctrl+C) still passes through
+    unchanged, so its exit status and signal handling stay as they were."""
+    began = time.monotonic()
+    try:
+        yield
+    except BaseException as error:
+        failed = not (isinstance(error, SystemExit) and error.code in (None, 0))
+        print(f'{command} {"failed after" if failed else "finished in"} {time.monotonic() - began:.1f} s',
+              flush=True)
+        raise
+    print(f'{command} finished in {time.monotonic() - began:.1f} s', flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(prog='./bilibi', description=__doc__)
     parser.add_argument('command', nargs='?', choices=(*COMMANDS, 'check-staged'), metavar='{' + ','.join(COMMANDS) + '}')
@@ -1117,7 +1140,8 @@ def main():
     if args.command in (None, 'help'):
         print('This is a Bilibi application: your own product, built on Bilibi.\n'
               'To change Bilibi itself, work in https://github.com/BelimbingProject/bilibi instead.\n\n'
-              'Usage: ./bilibi <command>\n\n'
+              'Usage: ./bilibi <command>\n'
+              'setup, add, update, upgrade, pin, check and release end by saying how long they took.\n\n'
               'Run your application on this computer\n'
               '  start         Install anything missing and run the application. The first\n'
               '                start opens it in your browser.\n'
@@ -1216,12 +1240,20 @@ def main():
     if args.command == 'connect-private-sources':
         connect_private_sources()
         return
+    with timed(args.command) if args.command in TIMED else contextlib.nullcontext():
+        repository, branch = work(args)
+        if args.command == 'release':
+            # The tagged commit is fixed now; waiting for GitHub must not block start or status.
+            github_release.release(TOOLS, ROOT, repository, branch, args.tag, args.yes, draft=args.draft)
+
+
+def work(args):
     local = ROOT / '.local'
     local.mkdir(exist_ok=True)
     with (local / 'workspace.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         if args.command == 'release':
-            repository, branch = release_checks(args.tag)
+            return release_checks(args.tag)
         elif args.command == 'add':
             add(args.component, args.kind, args.source, args.commit)
         elif args.command == 'own':
@@ -1232,9 +1264,7 @@ def main():
             pin_command(args.yes)
         else:
             globals()[args.command]()
-    if args.command == 'release':
-        # The tagged commit is fixed now; waiting for GitHub must not block start or status.
-        github_release.release(TOOLS, ROOT, repository, branch, args.tag, args.yes, draft=args.draft)
+    return None, None
 
 
 if __name__ == '__main__':
