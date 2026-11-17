@@ -1078,6 +1078,11 @@ COMMANDS = ('help', 'start', 'stop', 'choose', 'update', 'upgrade', 'own', 'add'
 TIMED = ('setup', 'add', 'update', 'upgrade', 'pin', 'check', 'release')
 
 
+# A ValueError is a refusal (bad arguments, "run check first"). A refusal that
+# comes at once did no real work, so it prints no timing line, like the Platform.
+REFUSAL_SECONDS = 10
+
+
 @contextlib.contextmanager
 def timed(command):
     """Print '<command> finished in N s' or '<command> failed after N s'.
@@ -1088,9 +1093,10 @@ def timed(command):
     try:
         yield
     except BaseException as error:
+        elapsed = time.monotonic() - began
         failed = not (isinstance(error, SystemExit) and error.code in (None, 0))
-        print(f'{command} {"failed after" if failed else "finished in"} {time.monotonic() - began:.1f} s',
-              flush=True)
+        if not (isinstance(error, ValueError) and elapsed < REFUSAL_SECONDS):
+            print(f'{command} {"failed after" if failed else "finished in"} {elapsed:.1f} s', flush=True)
         raise
     print(f'{command} finished in {time.monotonic() - began:.1f} s', flush=True)
 

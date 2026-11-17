@@ -147,10 +147,24 @@ class TimedTest(unittest.TestCase):
 
     def test_reports_failure_and_keeps_the_error(self):
         def fail():
-            raise ValueError('broken')
+            raise OSError('broken')
         out, error = self.run_timed(fail)
         self.assertRegex(out, r'^check failed after \d+\.\d s\n$')
+        self.assertIsInstance(error, OSError)
+
+    def test_quick_refusal_prints_no_timing_line(self):
+        def refuse():
+            raise ValueError('Run ./bilibi check first.')
+        out, error = self.run_timed(refuse)
+        self.assertEqual(out, '')
         self.assertIsInstance(error, ValueError)
+
+    def test_refusal_after_real_work_still_says_how_long(self):
+        def refuse():
+            raise ValueError('late')
+        with mock.patch.object(workspace, 'REFUSAL_SECONDS', -1):
+            out, _ = self.run_timed(refuse)
+        self.assertRegex(out, r'^check failed after')
 
     def test_keeps_exit_status_and_interrupts(self):
         out, error = self.run_timed(lambda: sys.exit(3))
