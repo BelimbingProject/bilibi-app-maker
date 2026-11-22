@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Package checked bytes in the existing Bilibi upload format."""
 import argparse
+from datetime import datetime, timezone
 import gzip
 import io
 import json
@@ -62,8 +63,13 @@ def main():
     if recipe.run('git', 'rev-list', '-1', args.tag, cwd=recipe.ROOT, capture=True).strip() != commit:
         raise ValueError('The setup tag must name the checked-out recipe commit')
     epoch = int(recipe.run('git', 'show', '-s', '--format=%ct', 'HEAD', cwd=recipe.ROOT, capture=True))
+    tag_date = recipe.run('git', 'for-each-ref', '--format=%(taggerdate:iso-strict)',
+                          f'refs/tags/{args.tag}', cwd=recipe.ROOT, capture=True).strip()
+    if not tag_date:
+        raise ValueError('The application release tag must be annotated and carry its release date')
+    released = datetime.fromisoformat(tag_date).astimezone(timezone.utc).date().isoformat()
     sources, _ = recipe.recipe()
-    setup = {'repository': args.repository, 'commit': commit, 'tag': args.tag, 'sources': sources}
+    setup = {'repository': args.repository, 'commit': commit, 'tag': args.tag, 'released': released, 'sources': sources}
     metadata = {
         'format': 1, 'setup': setup, 'toolchain': toolchain, 'builder': builder,
         'platform': {'version': record['platform_version'], 'commit': record['platform'], 'release': record.get('platform_tag')},

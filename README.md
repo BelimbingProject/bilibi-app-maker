@@ -108,7 +108,7 @@ Your folder now has two remotes. `origin` is your application, where you push. `
 ./bilibi release
 ```
 
-Check asks about each part with new commits. Say yes to use them and save the build record only after all checks pass, or no to build its saved version. Commit the successful build record and merge it into your application's default branch. Release then suggests the next version, pushes its tag, waits for GitHub to build exactly those reviewed versions, publishes the release, and prints the file to upload on each server's Software page. [Release your setup](docs/guides/releasing.md#release-your-setup) and [Install a release](docs/guides/installing.md#install-a-release) explain each step.
+Check asks about each part with new commits. Say yes to use them and save the build record only after all checks pass, or no to build its saved version. Commit the successful build record and merge it into your application's default branch. Release then suggests the next version, pushes an annotated tag whose UTC date identifies the release, waits for GitHub to build exactly those reviewed versions, publishes the release, and prints the file to upload on each server's Software page. The package records that date with the application tag for the status bar. [Release your setup](docs/guides/releasing.md#release-your-setup) and [Install a release](docs/guides/installing.md#install-a-release) explain each step.
 
 ## Guides
 

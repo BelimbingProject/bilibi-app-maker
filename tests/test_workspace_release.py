@@ -124,7 +124,8 @@ class ReleaseTest(BuildFixture):
         self.assertIn('This is the first release on origin.', output)
         self.assertIn(f'Release commit {self.head[:7]} as setup-v1.0.0?', output)
         self.assertIn('https://github.com/acme/shop/actions/runs/release/7', output)
-        self.assertEqual(self.git(self.root / 'application.git', 'rev-parse', 'setup-v1.0.0'), self.head)
+        self.assertEqual(self.git(self.root / 'application.git', 'rev-parse', 'setup-v1.0.0^{commit}'), self.head)
+        self.assertEqual(self.git(self.root / 'application.git', 'cat-file', '-t', 'setup-v1.0.0'), 'tag')
         self.assertIn('release edit setup-v1.0.0 --repo acme/shop --draft=false', self.calls())
         download = self.app / '.local/releases/setup-v1.0.0' / f'bilibi-setup-v1.0.0-{TARGET}.tar.gz'
         self.assertEqual(download.read_bytes(), b'application archive\n')
