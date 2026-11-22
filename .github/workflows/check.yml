@@ -97,7 +97,7 @@ jobs:
         if: inputs.release_tag != '' && endsWith(inputs.release_tag, '-test')
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
-        run: git tag "$RELEASE_TAG" "$GITHUB_SHA"
+        run: git -c user.name=github-actions -c user.email=github-actions@users.noreply.github.com tag -a "$RELEASE_TAG" -m "Validation package" "$GITHUB_SHA"
       - name: Package checked bytes
         if: inputs.release_tag != ''
         env:

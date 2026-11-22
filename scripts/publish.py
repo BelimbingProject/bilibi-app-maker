@@ -113,7 +113,7 @@ def require_default_branch(root):
 
 def start_release(tag, root):
     require_default_branch(root)
-    subprocess.run(['git', 'tag', tag], cwd=root, check=True)
+    subprocess.run(['git', 'tag', '-a', tag, '-m', f'Application release {tag}'], cwd=root, check=True)
     if subprocess.run(['git', 'push', 'origin', f'refs/tags/{tag}'], cwd=root).returncode != 0:
         subprocess.run(['git', 'tag', '-d', tag], cwd=root, check=True)
         raise ValueError(f'{tag} was not published to origin. Check your connection and Git access, '
