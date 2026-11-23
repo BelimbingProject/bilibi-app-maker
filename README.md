@@ -118,6 +118,7 @@ Check asks about each part with new commits. Say yes to use them and save the bu
 - [Installing a release](docs/guides/installing.md): put a tested release on Staging and Production.
 - [Working with an AI assistant](docs/guides/ai-assistants.md): `./bilibi mcp` lets Claude or Codex run your application's commands on your computer, with a preview and your confirmation before each change. It is separate from the `/mcp` inside a running Bilibi, which does business work.
 - [Private sources](docs/guides/private-sources.md): `./bilibi connect-private-sources` lets checks read your private Domains and Extensions.
+- [Connecting servers](docs/guides/connecting-servers.md): `./bilibi connect-servers` lets your servers read a private application's releases without a token that expires.
 - [Taking maker updates](docs/guides/maker-updates.md): `./bilibi update` for adopted applications (`maker.lock`, going back, one-time adoption, recovery) and `./bilibi upgrade` for merging maker files and moving the Platform.
 - [Application repositories](docs/guides/about.md): where changes belong and what the maker provides.
 
