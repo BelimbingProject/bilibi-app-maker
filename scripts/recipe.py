@@ -222,7 +222,10 @@ def checked_status(binary):
         entries = [(name.split('/')[1], item) for name, item in record.get('containers', {}).items() if name.startswith(layer + '/')]
         expected_lines.append(heading + (':' if entries else ': none mounted'))
         for name, item in sorted(entries):
-            expected_lines.append(f'  {name} {item.get("version", "untagged")}, commit {item["head"]}, modules:')
+            # The Platform names an Extension's reviewed or customer code
+            # declaration (ADR 28) between its commit and its modules.
+            code = f', code: {item["code"]}' if layer == 'extensions' and item.get('code') else ''
+            expected_lines.append(f'  {name} {item.get("version", "untagged")}, commit {item["head"]}{code}, modules:')
     actual = lines[2:]
     if len(expected_lines) != len(actual) or any(
             not (got.startswith(want + ' ') if want.endswith('modules:') else got == want)
