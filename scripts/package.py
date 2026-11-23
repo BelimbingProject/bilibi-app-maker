@@ -9,10 +9,14 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tarfile
 
 import recipe
 import native_builder
+
+# The most a file upload on the Software page accepts.
+UPLOAD_LIMIT = 64 * 1024 * 1024
 
 
 def json_bytes(value):
@@ -104,8 +108,12 @@ def main():
     output.mkdir(exist_ok=True)
     app_asset = output / f'bilibi-{args.tag}-{recipe.TARGET}.tar.gz'
     archive(app_asset, contents, epoch)
-    if app_asset.stat().st_size > 64 * 1024 * 1024:
-        raise ValueError('Archive exceeds the existing Bilibi upload limit of 64 MiB')
+    # A server installs a release from GitHub or the terminal at any size up to
+    # the unpack limit above; only the Software page's file upload stops at 64 MiB.
+    if app_asset.stat().st_size > UPLOAD_LIMIT:
+        print(f'{app_asset.name} is {app_asset.stat().st_size / 1024 / 1024:.0f} MiB, over the 64 MiB a Software page '
+              'upload accepts. Servers install it from GitHub (Software -> Releases) or with install-server.sh release.',
+              file=sys.stderr)
     installer = output / f'bilibi-installer-{recipe.TARGET}'
     installer.write_bytes((binary_dir / 'bilibi-installer').read_bytes())
     installer.chmod(0o755)

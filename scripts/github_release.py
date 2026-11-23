@@ -181,16 +181,37 @@ def finish(repository, tag, root):
               f'its tag: gh-axi release delete {tag} --repo {repository}, git push origin :refs/tags/{tag} and git tag -d {tag}.')
     else:
         print(f'Released {tag}: {page}')
-    print(f'''
+    print(install_steps(repository, tag, archive, expected[archive.name]))
+
+
+# The most a file upload on the Software page accepts (package.py says so at the same size).
+UPLOAD_LIMIT = 64 * 1024 * 1024
+
+
+def install_steps(repository, tag, archive, digest):
+    """What to do on each server: upload the file, or review it from GitHub when it is too large to upload."""
+    first = f'''
 Install it on each server, Staging first, then Production:
   1. On the server, open Software. Set GitHub repository to {repository} and accept it
-     (once per server; a private repository also needs its read token).
+     (once per server; a private repository also needs its read token).'''
+    last = '''  3. Review the versions it lists, then confirm the install with a fresh 2FA code.'''
+    size = archive.stat().st_size
+    if size > UPLOAD_LIMIT:
+        return f'''{first}
+  2. Open Software -> Releases, choose Refresh, then Review on {tag}. The server downloads it
+     from GitHub: at {size / 1024 / 1024:.0f} MiB the file is over the 64 MiB an upload accepts. Your checked copy:
+       {archive}
+     SHA-256 {digest}, checked against SHA256SUMS and GitHub.
+{last}
+Review the same release on Staging and Production. The server checks its checksum and
+GitHub build provenance again before it installs; Undo on the Software page goes back.'''
+    return f'''{first}
   2. Open Software -> Releases and upload this file:
        {archive}
-     SHA-256 {expected[archive.name]}, checked against SHA256SUMS and GitHub.
-  3. Review the versions it lists, then confirm the install with a fresh 2FA code.
+     SHA-256 {digest}, checked against SHA256SUMS and GitHub.
+{last}
 Upload the same file to Staging and Production. The server checks its checksum and
-GitHub build provenance again before it installs; Undo on the Software page goes back.''')
+GitHub build provenance again before it installs; Undo on the Software page goes back.'''
 
 
 def release(tools, root, repository, branch, tag, yes, draft=False):

@@ -12,6 +12,8 @@ On the target Bilibi instance, open **Software → Releases**, upload that archi
 
 GitHub's automatic **Source code** archives are not installable releases. The separate `bilibi-installer-x86_64-unknown-linux-gnu` and `bilibi-server-tools.tar.gz` assets are for initial server setup or deliberate administrator upgrades. Verify each one with `gh attestation verify`, the application repository, its `.github/workflows/release.yml` and the exact setup tag before running it; the Platform server-installation reference gives the complete command. Ordinary application installs do not update the shared installer.
 
+**A release over 64 MiB cannot be uploaded.** The build says so when it packages one, and `./bilibi release` then prints the GitHub steps instead: on **Software → Releases** choose **Refresh**, then **Review** on the release, and the server downloads it from GitHub. `install-server.sh release` on the server takes a file of any size.
+
 An uploaded file must carry valid GitHub build provenance too. Set and accept the application repository on the Software page before uploading.
 
 ## A private application repository
