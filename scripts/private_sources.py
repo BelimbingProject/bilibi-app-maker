@@ -111,8 +111,13 @@ def manifest(repository, redirect):
     }
 
 
-def created_app(repository, account):
-    """Open GitHub's App creation page and wait for the one-time code it sends back."""
+def created_app(repository, account, manifest_for=None, purpose=None, command=COMMAND):
+    """Open GitHub's App creation page and wait for the one-time code it sends back.
+
+    `manifest_for(redirect)` describes the App, and `purpose` is the sentence on the
+    local page; ./bilibi connect-servers passes its own (server_access.py)."""
+    manifest_for = manifest_for or (lambda redirect: manifest(repository, redirect))
+    purpose = purpose or f'Bilibi creates a GitHub App that can only read the private sources of {repository}.'
     owner = repository.split('/')[0]
     state = secrets.token_urlsafe(24)
     received = {}
@@ -146,10 +151,10 @@ def created_app(repository, account):
     local = f'http://127.0.0.1:{server.server_address[1]}/'
     where = (f'https://github.com/organizations/{owner}/settings/apps/new' if account == 'Organization'
              else 'https://github.com/settings/apps/new')
-    description = json.dumps(manifest(repository, local + 'created'))
+    description = json.dumps(manifest_for(local + 'created'))
     form = (f'<form method="post" action="{html.escape(where)}?{urlencode({"state": state})}">'
             f'<input type="hidden" name="manifest" value="{html.escape(description)}">'
-            f'<p>Bilibi creates a GitHub App that can only read the private sources of {html.escape(repository)}.</p>'
+            f'<p>{html.escape(purpose)}</p>'
             '<button>Continue to GitHub</button></form><script>document.forms[0].submit()</script>')
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -158,7 +163,7 @@ def created_app(repository, account):
               f'On GitHub, check the App is for {owner}, then choose "Create GitHub App".', flush=True)
         webbrowser.open(local)
         if not done.wait(WAIT_SECONDS):
-            raise ValueError(f'GitHub did not send the App back within an hour; nothing was changed. Rerun {COMMAND}.')
+            raise ValueError(f'GitHub did not send the App back within an hour; nothing was changed. Rerun {command}.')
     except KeyboardInterrupt:
         raise ValueError(f'Stopped before the App was created; nothing was changed in {repository}.') from None
     finally:
@@ -167,7 +172,7 @@ def created_app(repository, account):
     app = gh_json('--method', 'POST', f'app-manifests/{received["code"]}/conversions')
     if app is None:
         raise ValueError(f'GitHub did not hand over the new App. If it appears in your GitHub App settings, '
-                         f'delete it there, then rerun {COMMAND}. Nothing was changed in {repository}.')
+                         f'delete it there, then rerun {command}. Nothing was changed in {repository}.')
     return app
 
 

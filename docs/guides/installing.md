@@ -12,7 +12,11 @@ On the target Bilibi instance, open **Software → Releases**, upload that archi
 
 GitHub's automatic **Source code** archives are not installable releases. The separate `bilibi-installer-x86_64-unknown-linux-gnu` and `bilibi-server-tools.tar.gz` assets are for initial server setup or deliberate administrator upgrades. Verify each one with `gh attestation verify`, the application repository, its `.github/workflows/release.yml` and the exact setup tag before running it; the Platform server-installation reference gives the complete command. Ordinary application installs do not update the shared installer.
 
-An uploaded file must carry valid GitHub build provenance too. Set and accept the application repository on the Software page before uploading; a private repository also needs its read token. If verification fails, download the asset from the release again or inspect the failed **Release setup** run. Do not bypass the check or rebuild on the server.
+An uploaded file must carry valid GitHub build provenance too. Set and accept the application repository on the Software page before uploading.
+
+## A private application repository
+
+Run `./bilibi connect-servers --server <user@host>` once for your servers. It creates a GitHub App that can only read your application repository and puts it on each server, so every install and every Software › Releases check gets a new read-only token, and nobody has to make a token again. [Connecting servers](connecting-servers.md) explains each step. If verification fails, download the asset from the release again or inspect the failed **Release setup** run. Do not bypass the check or rebuild on the server.
 
 ## Where to go next
 

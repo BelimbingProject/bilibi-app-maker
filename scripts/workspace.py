@@ -29,6 +29,7 @@ import native_builder
 import platform_upgrade
 import previews
 import private_sources
+import server_access
 import recipe
 import publish
 
@@ -358,6 +359,12 @@ def connect_private_sources():
     if ci_build():
         raise ValueError('./bilibi connect-private-sources runs on your computer: it opens GitHub in your browser.')
     private_sources.connect(application_repository('connect-private-sources'))
+
+
+def connect_servers(given):
+    if ci_build():
+        raise ValueError('./bilibi connect-servers runs on your computer: it opens GitHub in your browser.')
+    server_access.connect(application_repository('connect-servers'), given)
 
 
 def pin(moved, command='upgrade'):
@@ -1070,7 +1077,7 @@ def show_logs(identity, lines):
 
 
 COMMANDS = ('help', 'start', 'stop', 'choose', 'update', 'upgrade', 'own', 'add', 'status', 'setup', 'pin', 'check',
-            'release', 'connect-private-sources', 'logs', 'jobs', 'insight', 'mcp')
+            'release', 'connect-private-sources', 'connect-servers', 'logs', 'jobs', 'insight', 'mcp')
 
 
 # Commands that can run for more than about ten seconds say how long they took.
@@ -1117,6 +1124,8 @@ def main():
     parser.add_argument('--background', action='store_true', help='start: run as a background job')
     parser.add_argument('--json', action='store_true', help='status, jobs, insight: print data for a program')
     parser.add_argument('--lines', type=int, default=200, help='logs: how many lines to show (default 200)')
+    parser.add_argument('--server', action='append', help='connect-servers: user@host[:/path/to/install-server.sh]; '
+                        'repeat for each server')
     args = parser.parse_args()
     if args.yes and args.command not in ('check', 'release', 'pin', 'stop'):
         parser.error('--yes is only for ./bilibi check, pin, stop and release')
@@ -1187,7 +1196,11 @@ def main():
               '  connect-private-sources\n'
               '                Let GitHub checks read private Domains and Extensions: creates\n'
               '                a read-only GitHub App and stores it in this repository.\n'
-              '                docs/guides/private-sources.md explains each step.\n\n'
+              '                docs/guides/private-sources.md explains each step.\n'
+              '  connect-servers --server <user@host>\n'
+              '                Let servers read a private application\'s releases for good:\n'
+              '                creates a read-only GitHub App and puts it on each server.\n'
+              '                docs/guides/connecting-servers.md explains each step.\n\n'
               'Stay current with the maker\n'
               '  upgrade       Move the Platform and official Domains and Extensions to the newest\n'
               '                recommended release, show its upgrade notes and, without maker.lock,\n'
@@ -1245,6 +1258,9 @@ def main():
         return
     if args.command == 'connect-private-sources':
         connect_private_sources()
+        return
+    if args.command == 'connect-servers':
+        connect_servers(args.server)
         return
     with timed(args.command) if args.command in TIMED else contextlib.nullcontext():
         repository, branch = work(args)
