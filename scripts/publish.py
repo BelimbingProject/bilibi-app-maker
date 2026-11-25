@@ -121,9 +121,12 @@ def start_release(tag, root):
     print(f'Pushed {tag} to origin. GitHub now builds it with the Release setup workflow.', flush=True)
 
 
-def release_assets(tag, target):
-    return {f'bilibi-{tag}-{target}.tar.gz', f'bilibi-installer-{target}', 'bilibi-server-tools.tar.gz',
-            'recipe.json', 'builder-packages.txt', 'publication.json', 'SHA256SUMS'}
+def release_assets(tag, target, operator_proof=False):
+    installable = {f'bilibi-{tag}-{target}.tar.gz', f'bilibi-installer-{target}', 'bilibi-server-tools.tar.gz'}
+    assets = installable | {'recipe.json', 'builder-packages.txt', 'publication.json', 'SHA256SUMS'}
+    if operator_proof:
+        assets |= {name + '.proof.json' for name in installable}
+    return assets
 
 
 def verify_download(folder, tag, repository, root=ROOT):
@@ -138,7 +141,9 @@ def verify_download(folder, tag, repository, root=ROOT):
         raise ValueError('Release recipe, checkout and tag must identify the same setup commit')
     if api(f'/repos/{repository}/commits/{tag}')['sha'] != commit:
         raise ValueError('The remote tag names a different recipe commit')
-    if set(expected) != release_assets(tag, record['built_for']['target']):
+    target = record['built_for']['target']
+    actual = set(expected)
+    if actual not in (release_assets(tag, target), release_assets(tag, target, operator_proof=True)):
         raise ValueError('The release does not contain the complete asset set')
     return expected, record, commit
 

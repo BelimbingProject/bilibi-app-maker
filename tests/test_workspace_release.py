@@ -97,7 +97,7 @@ class ReleaseTest(BuildFixture):
         path = self.fake.parent / 'calls'
         return path.read_text() if path.exists() else ''
 
-    def built_release(self, tag):
+    def built_release(self, tag, operator_proof=False):
         """The assets Release setup would have attached to the draft for tag."""
         assets = self.root / f'assets-{tag}'
         assets.mkdir()
@@ -108,6 +108,12 @@ class ReleaseTest(BuildFixture):
                                             'built_for': {'target': TARGET}}).encode()}
         for name, data in files.items():
             (assets / name).write_bytes(data)
+        if operator_proof:
+            installable = (f'bilibi-{tag}-{TARGET}.tar.gz', f'bilibi-installer-{TARGET}',
+                           'bilibi-server-tools.tar.gz')
+            for name in installable:
+                (assets / f'{name}.proof.json').write_text('{"proof":"operator"}\n')
+            files.update({f'{name}.proof.json': b'{"proof":"operator"}\n' for name in installable})
         (assets / 'SHA256SUMS').write_text(''.join(f'{hashlib.sha256(data).hexdigest()}  {name}\n'
                                                    for name, data in sorted(files.items())))
         self.github(assets=str(assets), polls=0, releases=[{
@@ -208,6 +214,15 @@ class ReleaseTest(BuildFixture):
         output = self.command('release', '--tag', 'setup-v1.0.0', '--yes', ok=False)
         self.assertIn(f'Checksum mismatch: {archive.name}', output)
         self.assertNotIn('release edit', self.calls())
+
+    def test_an_operator_signed_release_is_published_with_its_proof(self):
+        archive = self.built_release('setup-v1.0.0', operator_proof=True)
+        output = self.command('release', '--tag', 'setup-v1.0.0', '--yes')
+        proof = archive.with_name(archive.name + '.proof.json')
+        downloaded = self.app / '.local/releases/setup-v1.0.0' / proof.name
+        self.assertEqual(downloaded.read_text(), '{"proof":"operator"}\n')
+        self.assertIn(f'Operator proof {downloaded}', output)
+        self.assertIn('pinned release proof', output)
 
     def test_a_test_version_is_checked_but_stays_a_draft(self):
         self.built_release('setup-v1.2.3-test')

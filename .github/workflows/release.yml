@@ -45,6 +45,7 @@ jobs:
     secrets:
       SOURCE_READ_TOKEN: ${{ secrets.SOURCE_READ_TOKEN }}
       SOURCE_APP_PRIVATE_KEY: ${{ secrets.SOURCE_APP_PRIVATE_KEY }}
+      BILIBI_RELEASE_SIGNING_KEY: ${{ secrets.BILIBI_RELEASE_SIGNING_KEY }}
   attest:
     name: Attest every release asset
     needs: build
@@ -53,12 +54,16 @@ jobs:
       contents: read
       id-token: write
       attestations: write
+    outputs:
+      available: ${{ steps.provenance.outcome == 'success' }}
     steps:
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: setup-release
           path: dist
       - name: Create GitHub build provenance
+        id: provenance
+        continue-on-error: true
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
           subject-path: dist/*
@@ -90,6 +95,15 @@ jobs:
         with:
           name: setup-release
           path: dist
+      - name: Require an available release proof
+        env:
+          GITHUB_ATTESTATION_AVAILABLE: ${{ needs.attest.outputs.available }}
+          OPERATOR_PROOF_AVAILABLE: ${{ needs.build.outputs.operator_proof }}
+        run: |
+          if [[ "$GITHUB_ATTESTATION_AVAILABLE" != true && "$OPERATOR_PROOF_AVAILABLE" != true ]]; then
+            echo 'Release setup needs either GitHub build provenance or BILIBI_RELEASE_SIGNING_KEY.' >&2
+            exit 1
+          fi
       - name: Create draft and verify every GitHub asset digest
         env:
           GH_TOKEN: ${{ github.token }}

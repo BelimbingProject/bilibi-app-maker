@@ -1,7 +1,7 @@
 """./bilibi connect-servers: let servers read the application's private releases without a token that expires.
 
 A server installs releases from the application repository: the terminal
-install checks GitHub build provenance, and Software › Releases lists,
+install checks the pinned release proof, and Software › Releases lists,
 downloads and checks releases. For a private repository this command creates
 a GitHub App that only the owner can install, with two read-only permissions
 (Contents and Attestations), opens its install page for exactly the
