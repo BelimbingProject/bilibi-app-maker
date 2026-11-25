@@ -75,7 +75,7 @@ jobs:
         if: hashFiles('maker.toml') == ''
         env:
           BILIBI_TEST_PLATFORM_SIGNER: sources/platform/scripts/lib/release-proof.py
-        run: python3 -m unittest discover -s tests
+        run: env -u BILIBI_TOOL_APPLICATION_ROOT python3 -m unittest discover -s tests
       - name: Validate the saved recipe and lock
         run: python3 "$BILIBI_TOOLS/scripts/recipe.py" check-record
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
