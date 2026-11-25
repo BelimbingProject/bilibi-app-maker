@@ -121,8 +121,16 @@ def start_release(tag, root):
     print(f'Pushed {tag} to origin. GitHub now builds it with the Release setup workflow.', flush=True)
 
 
+def installable_assets(tag, target):
+    return (
+        (f'bilibi-{tag}-{target}.tar.gz', 'setup', target),
+        (f'bilibi-installer-{target}', 'installer', target),
+        ('bilibi-server-tools.tar.gz', 'server-tools', 'server-tools'),
+    )
+
+
 def release_assets(tag, target, operator_proof=False):
-    installable = {f'bilibi-{tag}-{target}.tar.gz', f'bilibi-installer-{target}', 'bilibi-server-tools.tar.gz'}
+    installable = {name for name, _, _ in installable_assets(tag, target)}
     assets = installable | {'recipe.json', 'builder-packages.txt', 'publication.json', 'SHA256SUMS'}
     if operator_proof:
         assets |= {name + '.proof.json' for name in installable}

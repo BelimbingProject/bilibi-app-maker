@@ -197,24 +197,28 @@ Install it on each server, Staging first, then Production:
   1. On the server, open Software. Set GitHub repository to {repository} and accept it
      (once per server; connect its repository-scoped GitHub App when the repository is private).'''
     last = '''  3. Review the versions it lists, then confirm the install with a fresh 2FA code.'''
-    proof_note = (f'\n     Operator proof {proof}, checked against the server\'s pinned key.' if proof else '')
     size = archive.stat().st_size
     if size > UPLOAD_LIMIT:
         return f'''{first}
   2. Open Software -> Releases, choose Refresh, then Review on {tag}. The server downloads it
      from GitHub: at {size / 1024 / 1024:.0f} MiB the file is over the 64 MiB an upload accepts. Your checked copy:
        {archive}
-     SHA-256 {digest}, checked against SHA256SUMS and GitHub.{proof_note}
+     SHA-256 {digest}, checked against SHA256SUMS and GitHub.
 {last}
 Review the same release on Staging and Production. The server checks its checksum and
-its pinned release proof again before it installs; Undo on the Software page goes back.'''
+its pinned release proof before it installs; Undo on the Software page goes back.'''
+    proof_note = (
+        f'\n     For operator trust, also upload the operator proof {proof}.'
+        '\n     For GitHub trust, leave the proof field empty.'
+        if proof else ''
+    )
     return f'''{first}
-  2. Open Software -> Releases and upload this file{(' and its proof' if proof else '')}:
+  2. Open Software -> Releases and upload this file:
        {archive}
      SHA-256 {digest}, checked against SHA256SUMS and GitHub.{proof_note}
 {last}
 Upload the same file to Staging and Production. The server checks its checksum and
-its pinned release proof again before it installs; Undo on the Software page goes back.'''
+its pinned release proof before it installs; Undo on the Software page goes back.'''
 
 
 def release(tools, root, repository, branch, tag, yes, draft=False):

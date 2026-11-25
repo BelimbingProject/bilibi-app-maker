@@ -46,14 +46,14 @@ def write_sums(folder):
 
 def sign(args):
     root = Path(os.environ.get('BILIBI_TOOL_APPLICATION_ROOT', Path(__file__).resolve().parent.parent)).resolve()
-    signer = args.signer or platform_signer(root)
+    signer = platform_signer(root)
     if not signer.is_file():
         raise ValueError(
             f'{signer} is missing. Upgrade the saved Bilibi Platform to a release with ADR 35 operator proofs.'
         )
     key = os.environ.pop(SECRET, '')
     if not key.strip():
-        raise ValueError(f'{SECRET} is empty; configure the repository Actions secret before signing a release')
+        raise ValueError(f'{SECRET} is empty; configure the release-signing environment secret before signing a release')
     if not hasattr(os, 'memfd_create'):
         raise ValueError('release signing needs Linux anonymous memory files')
 
@@ -65,17 +65,14 @@ def sign(args):
     unsigned = publish.release_assets(args.tag, target)
     if set(expected) != unsigned:
         raise ValueError('Sign only the complete unsigned release produced by package.py')
-    assets = (
-        (args.directory / f'bilibi-{args.tag}-{target}.tar.gz', 'setup', target),
-        (args.directory / f'bilibi-installer-{target}', 'installer', target),
-        (args.directory / 'bilibi-server-tools.tar.gz', 'server-tools', 'server-tools'),
-    )
+    assets = publish.installable_assets(args.tag, target)
 
     key_fd = os.memfd_create('bilibi-release-signing-key', flags=0)
     try:
         os.write(key_fd, key.encode('utf-8'))
         sanitized = dict(os.environ)
-        for artifact, kind, proof_target in assets:
+        for name, kind, proof_target in assets:
+            artifact = args.directory / name
             os.lseek(key_fd, 0, os.SEEK_SET)
             output = artifact.with_name(artifact.name + '.proof.json')
             subprocess.run(
@@ -113,7 +110,6 @@ def main():
     parser.add_argument('--repository', required=True)
     parser.add_argument('--repository-id', type=int, required=True)
     parser.add_argument('--workflow', required=True)
-    parser.add_argument('--signer', type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
     try:
         sign(args)

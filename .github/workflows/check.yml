@@ -8,23 +8,15 @@ on:
       release_tag:
         type: string
         default: ''
-    outputs:
-      operator_proof:
-        description: Whether the packaged release carries operator proof sidecars
-        value: ${{ jobs.check.outputs.operator_proof }}
     secrets:
       SOURCE_READ_TOKEN:
         required: false
       SOURCE_APP_PRIVATE_KEY:
         required: false
-      BILIBI_RELEASE_SIGNING_KEY:
-        required: false
 permissions:
   contents: read
 jobs:
   check:
-    outputs:
-      operator_proof: ${{ steps.operator-proof.outputs.operator_proof }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -49,9 +41,6 @@ jobs:
           sudo -u postgres /usr/lib/postgresql/18/bin/initdb -D /var/lib/postgresql/setup-check --auth=trust
           sudo -u postgres /usr/lib/postgresql/18/bin/pg_ctl -D /var/lib/postgresql/setup-check -l /var/lib/postgresql/setup-check/server.log -o '-h 127.0.0.1 -p 5439' -w start
           createdb -h 127.0.0.1 -p 5439 -U postgres setup_check
-      - name: Test publisher helpers
-        if: hashFiles('maker.toml') == ''
-        run: python3 -m unittest discover -s tests
       # An adopted application runs the exact maker tooling recorded in maker.lock;
       # the maker's own checkout runs its scripts. CI never advances the record.
       - name: Install the recorded maker tooling
@@ -82,6 +71,11 @@ jobs:
         run: |
           GIT_ASKPASS="$BILIBI_TOOLS/scripts/source-askpass.sh" python3 "$BILIBI_TOOLS/scripts/recipe.py" materialize
           GIT_ASKPASS="$BILIBI_TOOLS/scripts/source-askpass.sh" python3 "$BILIBI_TOOLS/scripts/recipe.py" verify-remote
+      - name: Test publisher helpers
+        if: hashFiles('maker.toml') == ''
+        env:
+          BILIBI_TEST_PLATFORM_SIGNER: sources/platform/scripts/lib/release-proof.py
+        run: python3 -m unittest discover -s tests
       - name: Validate the saved recipe and lock
         run: python3 "$BILIBI_TOOLS/scripts/recipe.py" check-record
       - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
@@ -113,25 +107,6 @@ jobs:
         run: |
           "$BILIBI_TOOLS/scripts/builder.sh" python3 "$BILIBI_TOOLS/scripts/package.py" --tag "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY"
           "$BILIBI_TOOLS/scripts/builder.sh" python3 "$BILIBI_TOOLS/scripts/verify-package.py" --tag "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY"
-      - name: Add operator release proofs when configured
-        id: operator-proof
-        if: inputs.release_tag != '' && !endsWith(inputs.release_tag, '-test')
-        env:
-          BILIBI_RELEASE_SIGNING_KEY: ${{ secrets.BILIBI_RELEASE_SIGNING_KEY }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
-        run: |
-          if [[ -z "$BILIBI_RELEASE_SIGNING_KEY" ]]; then
-            echo 'operator_proof=false' >> "$GITHUB_OUTPUT"
-            echo 'No operator signing key is configured; GitHub attestation must prove this release.'
-            exit 0
-          fi
-          python3 "$BILIBI_TOOLS/scripts/sign_release.py" \
-            --directory dist \
-            --tag "$RELEASE_TAG" \
-            --repository "$GITHUB_REPOSITORY" \
-            --repository-id "$GITHUB_REPOSITORY_ID" \
-            --workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"
-          echo 'operator_proof=true' >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: inputs.release_tag != ''
         with:

@@ -221,7 +221,10 @@ class ReleaseTest(BuildFixture):
         proof = archive.with_name(archive.name + '.proof.json')
         downloaded = self.app / '.local/releases/setup-v1.0.0' / proof.name
         self.assertEqual(downloaded.read_text(), '{"proof":"operator"}\n')
-        self.assertIn(f'Operator proof {downloaded}', output)
+        self.assertIn(f'For operator trust, also upload the operator proof {downloaded}.', output)
+        release, = json.loads((self.fake.parent / 'state.json').read_text())['releases']
+        self.assertFalse(release['draft'])
+        self.assertTrue(release['immutable'])
         self.assertIn('pinned release proof', output)
 
     def test_a_test_version_is_checked_but_stays_a_draft(self):

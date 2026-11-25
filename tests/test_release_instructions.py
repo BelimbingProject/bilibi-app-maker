@@ -35,9 +35,13 @@ class InstallSteps(unittest.TestCase):
     def test_an_operator_proof_is_named_beside_the_archive(self):
         text, archive = self.steps(1024, operator_proof=True)
         proof = archive.with_name(archive.name + '.proof.json')
-        self.assertIn('upload this file and its proof', text)
-        self.assertIn(f'Operator proof {proof}', text)
-        self.assertIn("server's pinned key", text)
+        self.assertIn(f'For operator trust, also upload the operator proof {proof}.', text)
+        self.assertIn('For GitHub trust, leave the proof field empty.', text)
+
+    def test_github_download_leaves_proof_selection_to_the_server(self):
+        text, archive = self.steps(4, operator_proof=True)
+        self.assertIn('choose Refresh, then Review on setup-v1.0.0', text)
+        self.assertNotIn(str(archive.with_name(archive.name + '.proof.json')), text)
 
 
 if __name__ == '__main__':

@@ -45,10 +45,58 @@ jobs:
     secrets:
       SOURCE_READ_TOKEN: ${{ secrets.SOURCE_READ_TOKEN }}
       SOURCE_APP_PRIVATE_KEY: ${{ secrets.SOURCE_APP_PRIVATE_KEY }}
-      BILIBI_RELEASE_SIGNING_KEY: ${{ secrets.BILIBI_RELEASE_SIGNING_KEY }}
+  sign:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: release-signing
+    outputs:
+      operator_proof: ${{ steps.operator-proof.outputs.operator_proof }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: setup-release
+          path: dist
+      - name: Add operator release proofs when configured
+        id: operator-proof
+        env:
+          BILIBI_RELEASE_SIGNING_KEY: ${{ secrets.BILIBI_RELEASE_SIGNING_KEY }}
+        run: |
+          if [[ -z "$BILIBI_RELEASE_SIGNING_KEY" ]]; then
+            echo 'No operator signing key is configured; GitHub attestation must prove this release.'
+            exit 0
+          fi
+          tools=$(env -u BILIBI_RELEASE_SIGNING_KEY ./bilibi tooling)
+          export BILIBI_TOOL_APPLICATION_ROOT="$PWD"
+          export BILIBI_SOURCE_DIR="$RUNNER_TEMP/release-sources"
+          (
+            unset BILIBI_RELEASE_SIGNING_KEY
+            mkdir -p "$BILIBI_SOURCE_DIR/platform"
+            tar -xzf dist/bilibi-server-tools.tar.gz -C "$BILIBI_SOURCE_DIR/platform" scripts/lib/release-proof.py
+          )
+          python3 "$tools/scripts/sign_release.py" \
+            --directory dist \
+            --tag "$GITHUB_REF_NAME" \
+            --repository "$GITHUB_REPOSITORY" \
+            --repository-id "$GITHUB_REPOSITORY_ID" \
+            --workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"
+          echo 'operator_proof=true' >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: steps.operator-proof.outputs.operator_proof == 'true'
+        with:
+          name: setup-release-signed
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
   attest:
     name: Attest every release asset
-    needs: build
+    needs: [build, sign]
+    if: >-
+      ${{ !cancelled() && needs.build.result == 'success' &&
+          (needs.sign.result == 'success' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -59,7 +107,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          name: setup-release
+          name: ${{ needs.sign.outputs.operator_proof == 'true' && 'setup-release-signed' || 'setup-release' }}
           path: dist
       - name: Create GitHub build provenance
         id: provenance
@@ -70,7 +118,7 @@ jobs:
   draft:
     if: github.event_name == 'push'
     name: Publish the verified draft
-    needs: [build, attest]
+    needs: [sign, attest]
     runs-on: ubuntu-24.04
     environment: release
     permissions:
@@ -93,12 +141,12 @@ jobs:
           npm ci --prefix "$RUNNER_TEMP/github-tools" --no-audit --no-fund --ignore-scripts
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
-          name: setup-release
+          name: ${{ needs.sign.outputs.operator_proof == 'true' && 'setup-release-signed' || 'setup-release' }}
           path: dist
       - name: Require an available release proof
         env:
           GITHUB_ATTESTATION_AVAILABLE: ${{ needs.attest.outputs.available }}
-          OPERATOR_PROOF_AVAILABLE: ${{ needs.build.outputs.operator_proof }}
+          OPERATOR_PROOF_AVAILABLE: ${{ needs.sign.outputs.operator_proof }}
         run: |
           if [[ "$GITHUB_ATTESTATION_AVAILABLE" != true && "$OPERATOR_PROOF_AVAILABLE" != true ]]; then
             echo 'Release setup needs either GitHub build provenance or BILIBI_RELEASE_SIGNING_KEY.' >&2
