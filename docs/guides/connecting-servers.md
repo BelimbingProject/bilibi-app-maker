@@ -46,7 +46,7 @@ To confirm it worked on a server later, run `sudo scripts/install-server.sh gith
 
 ## What the servers do with it
 
-**Each check mints its own token, which reads only your application repository and expires within the hour.** The terminal install (`install-server.sh release`, `installer` and `verify`) hands it to GitHub CLI for one build-provenance check. **Software › Releases** uses one for each list, review, download and upload check. The token is never saved, so there is nothing to renew: installs and upgrades can run unattended.
+**Each GitHub access check mints its own token, which reads only your application repository and expires within the hour.** The terminal install (`install-server.sh release`, `installer` and `verify`) hands it to GitHub CLI when the server uses GitHub trust. **Software › Releases** uses the App to access private releases on GitHub. See [Installing a release](installing.md) for how the server verifies a release. The token is never saved, so installs and upgrades can run unattended without token renewal.
 
 ## Why is it safe to keep on a server?
 

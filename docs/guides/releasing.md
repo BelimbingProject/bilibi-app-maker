@@ -52,7 +52,7 @@ Do these once, in your application repository's Settings on GitHub:
 - Protect `main` and the `setup-v*` tags so only release maintainers can change them.
 - Allow GitHub Actions to run.
 
-Operator signing requires a saved Platform revision that includes [Platform PR #892](https://github.com/BelimbingProject/bilibi/pull/892) and its `scripts/lib/release-proof.py` signer. The maker recipe uses `61ad4fd5b782388cbe3f25d15b8d455b7a079b40` on Platform main.
+Operator signing requires a saved Platform revision that includes the `scripts/lib/release-proof.py` signer introduced in [Platform PR #892](https://github.com/BelimbingProject/bilibi/pull/892). See [the maker recipe](../../setup.toml) for its current Platform pin.
 
 Create a GitHub Actions environment named `release-signing`. Under **Deployment branches and tags**, choose **Selected branches and tags** and allow only tags matching `setup-v*`. Store `BILIBI_RELEASE_SIGNING_KEY` only as a secret in that environment. Remove any repository or organization Actions secret of the same name exposed to this repository.
 Generate a dedicated Ed25519 key in memory, save only its public half, and send the private half straight to GitHub:
