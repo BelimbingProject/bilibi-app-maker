@@ -51,6 +51,8 @@ If your application has `maker.lock`, take maker updates with `update`, and use 
 
 **Only `./bilibi update` moves `maker.lock`.** Check and release never rewrite it. A release tags the record together with `maker.lock`, so you can always see which maker built a release.
 
+To enable operator-signed releases, also follow the [workflow migration for existing apps](releasing.md#existing-apps).
+
 ## Publishing a maker update
 
 Because `maker.lock` changes only in your checkout, your team and CI keep running the old maker until you publish the change like any other application change:

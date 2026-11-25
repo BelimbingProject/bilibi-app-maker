@@ -52,7 +52,38 @@ Do these once, in your application repository's Settings on GitHub:
 - Protect `main` and the `setup-v*` tags so only release maintainers can change them.
 - Allow GitHub Actions to run.
 
+Operator signing requires a saved Platform revision that includes the `scripts/lib/release-proof.py` signer introduced in [Platform PR #892](https://github.com/BelimbingProject/bilibi/pull/892). See [the maker recipe](../../setup.toml) for its current Platform pin.
+
+Create a GitHub Actions environment named `release-signing`. Under **Deployment branches and tags**, choose **Selected branches and tags** and allow only tags matching `setup-v*`. Store `BILIBI_RELEASE_SIGNING_KEY` only as a secret in that environment. Remove any repository or organization Actions secret of the same name exposed to this repository.
+Generate a dedicated Ed25519 key in memory, save only its public half, and send the private half straight to GitHub:
+
+```sh
+set +x
+BILIBI_RELEASE_SIGNING_KEY=$(openssl genpkey -algorithm Ed25519)
+printf '%s\n' "$BILIBI_RELEASE_SIGNING_KEY" | openssl pkey -pubout > operator-release.pub
+printf '%s\n' "$BILIBI_RELEASE_SIGNING_KEY" | gh secret set BILIBI_RELEASE_SIGNING_KEY --env release-signing
+unset BILIBI_RELEASE_SIGNING_KEY
+```
+
+Keep `operator-release.pub` through a separate trusted channel and give it to each server's one-time `install-server.sh trust --operator-key` command.
+Pin the workflow identity as `owner/repository/.github/workflows/release.yml` and copy the immutable repository number from GitHub Settings.
+The private key exists only in the CI secret and release-job memory; never put it in a file, log, release archive or server.
+
+```sh
+sudo scripts/install-server.sh trust production --operator-key operator-release.pub \
+  --repo owner/repository --repo-id 123456789 \
+  --workflow owner/repository/.github/workflows/release.yml --minimum-tag setup-v1.0.0
+```
+
 On your computer, sign in to GitHub with `gh auth login`, using an account that can publish releases and read the repository's settings. Release also needs Node.js 20 or newer with npm; `./bilibi setup` prepares it.
+
+### Existing apps
+
+After `./bilibi update`, migrate your application-owned workflows in the same reviewed change. Keep your application's source credentials, build and validation steps.
+
+1. In [`check.yml`](../../.github/workflows/check.yml), use the maker's unsigned `setup-release` artifact upload. Remove any signing step, signing secret input and operator-proof output from this reusable workflow.
+2. In [`release.yml`](../../.github/workflows/release.yml), copy the `sign` job after `build`. It runs on release tag pushes, uses the protected `release-signing` environment and signs the checked artifact with the signer bundled from the saved Platform. Remove any signing-secret pass-through from `build`.
+3. Copy the maker's `attest` job dependencies, condition, artifact selection, optional provenance step and availability output. In `draft`, depend on `sign` and `attest`, copy the same artifact selection and require either proof before creating the draft. Manual validation still uses the unsigned artifact.
 
 ### Release
 
@@ -77,7 +108,7 @@ The printed instructions end like this:
 ```text
 Install it on each server, Staging first, then Production:
   1. On the server, open Software. Set GitHub repository to your-company/my-bilibi and accept it
-     (once per server; a private repository also needs its read token).
+     (once per server; connect its repository-scoped GitHub App when the repository is private).
   2. Open Software -> Releases and upload this file:
        /home/you/my-bilibi/.local/releases/setup-v1.2.4/bilibi-setup-v1.2.4-x86_64-unknown-linux-gnu.tar.gz
      SHA-256 ..., checked against SHA256SUMS and GitHub.
@@ -94,11 +125,11 @@ A `setup-vX.Y.Z-test` version runs the same build and checks, but stays a draft.
 
 ### What happens on GitHub
 
-**Release setup** runs only for a `setup-vX.Y.Z` tag whose commit is on the repository's default branch. It repeats the combined gates, checks the compiled program's reported composition, packages it, publishes SHA-256 checksums, creates GitHub build provenance for every asset, and creates a draft release through the `release` environment. Only the draft job has `contents: write`; only the attestation job can request an identity token and write attestations. It uploads every asset and compares each digest with GitHub's recorded SHA-256. A rerun refuses an existing release instead of replacing its files.
+**Release setup** runs only for a `setup-vX.Y.Z` tag whose commit is on the repository's default branch. It repeats the combined gates, checks the compiled program's reported composition, packages it, and signs every installable asset when `BILIBI_RELEASE_SIGNING_KEY` is configured. Each `.proof.json` sidecar uses the Platform's ADR 35 DSSE and Ed25519 format and binds the asset to this repository, immutable repository number, workflow, tag, kind and target. The workflow still asks GitHub for build provenance when that feature is available. A valid operator proof is sufficient when GitHub attestations are unavailable; without either proof the draft is refused. Only the draft job has `contents: write`; only the attestation job can request an identity token and write attestations. It uploads every asset and compares each digest with GitHub's recorded SHA-256. A rerun refuses an existing release instead of replacing its files.
 
 Publishing is your own action, never the workflow's. This keeps an administration credential out of Actions: checking GitHub's immutability setting requires administration read permission, which `./bilibi release` uses through your own `gh auth login` session. It installs the locked `gh-axi` helper from `scripts/github-tools` under `.local/github-tools` the first time.
 
-Every server checks each asset's build provenance from this repository's `.github/workflows/release.yml` before it unpacks or installs it. To check it yourself, run `gh attestation verify <file> --repo your-company/my-bilibi` on a downloaded file. Downloads stay under `.local/releases/` until you delete them.
+Every server checks the one proof policy pinned during setup before it unpacks or installs an asset. A GitHub-pinned server verifies build provenance from `.github/workflows/release.yml`; an operator-pinned server verifies the matching `.proof.json` offline against `operator-release.pub`. Downloads stay under `.local/releases/` until you delete them.
 
 ## What the release contains
 
@@ -107,6 +138,7 @@ Every server checks each asset's build provenance from this repository's `.githu
 | `bilibi-setup-v<version>-x86_64-unknown-linux-gnu.tar.gz` | The existing upload format: root-level `bilibi-web`, `manifest.txt`, `Cargo.lock`, `release.json`, `bundle.json` and `SHA256SUMS`. |
 | `bilibi-installer-x86_64-unknown-linux-gnu` | The matching installer, outside the app archive. |
 | `bilibi-server-tools.tar.gz` | The matching server installation script, libraries, service templates and waiting page. |
+| `<installable asset>.proof.json` | The optional operator-key proof beside each setup archive, installer and server-tools archive. |
 | `recipe.json` | Setup repository, tag and commit; every source URL and commit; Platform, Domains, Extensions, toolchain, builder, target and dynamic dependencies. |
 | `builder-packages.txt` | The build host's installed package versions (pacman on Arch, dpkg on Ubuntu and Debian). |
 | `publication.json` | The build run link, actual Rust, Node, Zig and cargo-zigbuild versions, and build host details. |
@@ -128,7 +160,7 @@ Local commands and the GitHub release workflow both call `scripts/builder.sh`. T
 
 Cargo-zigbuild links release programs with Zig for `x86_64-unknown-linux-gnu.2.36`. This keeps the Debian 12 glibc baseline even when your computer uses newer glibc. We keep GNU Linux linkage to preserve the runtime libraries used by the Platform. Both release binaries are checked with `objdump`; any required glibc version above 2.36 fails the build. The recipe records the baseline, the actual required version and dynamic dependencies for each binary. Check the actual target server's libraries before promotion. Distributed programs do not use `target-cpu=native`.
 
-To validate release packaging from a pull request, run the **Release setup** workflow manually on that branch. It builds, checks, packages and attests a `setup-v0.0.0-test` artifact without creating a Git tag on GitHub or publishing a release.
+To validate release packaging from a pull request, run the **Release setup** workflow manually on that branch. It builds, checks, packages and attempts to attest a `setup-v0.0.0-test` artifact without creating a Git tag on GitHub or publishing a release.
 
 Archives have sorted entries, fixed modes, zero ownership, recipe-commit timestamps and no gzip timestamp. The workflow repackages the same program and compares every asset digest. This proves deterministic packaging. **The program is built from the recorded recipe; two clean compiler builds have not yet proved identical output bytes.** The workflow records the checked run time; compare a cold run with a later run that restores the cache. Cache keys include the source map, composition, toolchain and builder; cache hits still run every check.
 

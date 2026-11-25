@@ -174,6 +174,8 @@ def finish(repository, tag, root):
                              'enable release immutability in repository Settings and release a new version.')
     target = json.loads((folder / 'recipe.json').read_text())['built_for']['target']
     archive = folder / f'bilibi-{tag}-{target}.tar.gz'
+    proof = archive.with_name(archive.name + '.proof.json')
+    proof = proof if proof.name in expected else None
     page = f'https://github.com/{repository}/releases/tag/{tag}'
     print()
     if tag.endswith('-test'):
@@ -181,19 +183,19 @@ def finish(repository, tag, root):
               f'its tag: gh-axi release delete {tag} --repo {repository}, git push origin :refs/tags/{tag} and git tag -d {tag}.')
     else:
         print(f'Released {tag}: {page}')
-    print(install_steps(repository, tag, archive, expected[archive.name]))
+    print(install_steps(repository, tag, archive, expected[archive.name], proof))
 
 
 # The most a file upload on the Software page accepts (package.py says so at the same size).
 UPLOAD_LIMIT = 64 * 1024 * 1024
 
 
-def install_steps(repository, tag, archive, digest):
+def install_steps(repository, tag, archive, digest, proof=None):
     """What to do on each server: upload the file, or review it from GitHub when it is too large to upload."""
     first = f'''
 Install it on each server, Staging first, then Production:
   1. On the server, open Software. Set GitHub repository to {repository} and accept it
-     (once per server; a private repository also needs its read token).'''
+     (once per server; connect its repository-scoped GitHub App when the repository is private).'''
     last = '''  3. Review the versions it lists, then confirm the install with a fresh 2FA code.'''
     size = archive.stat().st_size
     if size > UPLOAD_LIMIT:
@@ -204,14 +206,19 @@ Install it on each server, Staging first, then Production:
      SHA-256 {digest}, checked against SHA256SUMS and GitHub.
 {last}
 Review the same release on Staging and Production. The server checks its checksum and
-GitHub build provenance again before it installs; Undo on the Software page goes back.'''
+its pinned release proof before it installs; Undo on the Software page goes back.'''
+    proof_note = (
+        f'\n     For operator trust, also upload the operator proof {proof}.'
+        '\n     For GitHub trust, leave the proof field empty.'
+        if proof else ''
+    )
     return f'''{first}
   2. Open Software -> Releases and upload this file:
        {archive}
-     SHA-256 {digest}, checked against SHA256SUMS and GitHub.
+     SHA-256 {digest}, checked against SHA256SUMS and GitHub.{proof_note}
 {last}
 Upload the same file to Staging and Production. The server checks its checksum and
-GitHub build provenance again before it installs; Undo on the Software page goes back.'''
+its pinned release proof before it installs; Undo on the Software page goes back.'''
 
 
 def release(tools, root, repository, branch, tag, yes, draft=False):

@@ -10,12 +10,15 @@ import github_release  # noqa: E402
 
 
 class InstallSteps(unittest.TestCase):
-    def steps(self, limit):
+    def steps(self, limit, operator_proof=False):
         with tempfile.TemporaryDirectory() as folder:
             archive = Path(folder) / 'bilibi-setup-v1.0.0-x86_64-unknown-linux-gnu.tar.gz'
             archive.write_bytes(b'application archive\n')
+            proof = archive.with_name(archive.name + '.proof.json') if operator_proof else None
+            if proof:
+                proof.write_text('{}\n')
             with mock.patch.object(github_release, 'UPLOAD_LIMIT', limit):
-                return github_release.install_steps('acme/shop', 'setup-v1.0.0', archive, 'abc123'), archive
+                return github_release.install_steps('acme/shop', 'setup-v1.0.0', archive, 'abc123', proof), archive
 
     def test_a_file_within_the_upload_limit_is_uploaded(self):
         text, archive = self.steps(1024)
@@ -28,6 +31,17 @@ class InstallSteps(unittest.TestCase):
         self.assertIn('over the 64 MiB an upload accepts', text)
         self.assertIn(str(archive), text)
         self.assertNotIn('upload this file', text)
+
+    def test_an_operator_proof_is_named_beside_the_archive(self):
+        text, archive = self.steps(1024, operator_proof=True)
+        proof = archive.with_name(archive.name + '.proof.json')
+        self.assertIn(f'For operator trust, also upload the operator proof {proof}.', text)
+        self.assertIn('For GitHub trust, leave the proof field empty.', text)
+
+    def test_github_download_leaves_proof_selection_to_the_server(self):
+        text, archive = self.steps(4, operator_proof=True)
+        self.assertIn('choose Refresh, then Review on setup-v1.0.0', text)
+        self.assertNotIn(str(archive.with_name(archive.name + '.proof.json')), text)
 
 
 if __name__ == '__main__':
